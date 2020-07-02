@@ -9,7 +9,7 @@ from pickle import loads, dumps
 
 
 __all__ = ['JSON', 'JSONDateTime']
-__version__ = '0.0.20200514'
+__version__ = '0.0.20200626'
 
 
 UTF8 = 'utf-8'
@@ -39,14 +39,17 @@ def _iterencode_list(lst, _current_indent_level):
 
 
 if json.__version__ in ['2.0.9']:
-    import inspect
-    import ast
+    try:
+        import inspect
+        import ast
 
-    m = ast.parse(inspect.getsource(encoder._make_iterencode))
-    my_iterencode_list = ast.parse(inspect.getsource(_iterencode_list))
-    my_iterencode_list.body[0].body[0] = m.body[0].body[1]
-    m.body[0].body[1] = my_iterencode_list.body[0]
-    exec(compile(m, '<string>', 'exec'), encoder.__dict__)
+        m = ast.parse(inspect.getsource(encoder._make_iterencode))
+        my_iterencode_list = ast.parse(inspect.getsource(_iterencode_list))
+        my_iterencode_list.body[0].body[0] = m.body[0].body[1]
+        m.body[0].body[1] = my_iterencode_list.body[0]
+        exec(compile(m, '<string>', 'exec'), encoder.__dict__)
+    except:
+        pass
 
 
 
