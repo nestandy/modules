@@ -9,7 +9,7 @@ from pickle import loads, dumps
 
 
 __all__ = ['JSON', 'JSONDateTime']
-__version__ = '0.0.20200626'
+__version__ = '0.0.20200722'
 
 
 UTF8 = 'utf-8'
@@ -90,7 +90,11 @@ class JSON:
         if hasattr(file, '__fspath__'):
             file = file.__fspath__()
         with open(file, 'r', encoding=UTF8) if isinstance(file, str) else file as f:
-            return JSON(json.load(f), autoattr=autoattr)
+            b = JSON(json.load(f), autoattr=autoattr)
+            if isinstance(file, str):
+                b.__dict__['_filename'] = file
+                b.__dict__['_zipfilename'] = None
+            return b
 
     @staticmethod
     def _loads(value, *, autoattr=False):
@@ -102,18 +106,21 @@ class JSON:
     def __str__(self):
         return self._dumps()
 
-    def __getattr__(self, item):
-        return self._data[item] if not self._autoattr or item.startswith('_') else self._data.setdefault(item, JSON(autoattr=True))
+    def __bytes__(self):
+        return str(self).encode(UTF8)
 
-    def __getitem__(self, item):
+    def __getattr__(self, item):
         return self._data[item]
 
     def __setattr__(self, key, value):
+        if not self._autoattr:
+            self._data[key]
         self._data[key] = value
 
     def __delattr__(self, item):
         del self._data[item]
 
+    __getitem__ = __getattr__
     __setitem__ = __setattr__
     __delitem__ = __delattr__
 
@@ -148,11 +155,15 @@ class JSON:
         self._data.append(value)
 
     def _dump(self, file, indent=4, *, zipfile=None):
+        self.__dict__['_filename'] = None
+        self.__dict__['_zipfilename'] = None
         if zipfile is None:
             if hasattr(file, '__fspath__'):
                 file = file.__fspath__()
             with open(file, 'w', encoding=UTF8) if isinstance(file, str) else file as f:
                 json.dump(self, f, cls=_Encoder, indent=indent, ensure_ascii=False)
+            if isinstance(file, str):
+                self.__dict__['_filename'] = file
         else:
             with zf.ZipFile(zipfile, 'a', compression=zf.ZIP_DEFLATED, compresslevel=9) as z:
                 if file in z.namelist():
@@ -162,6 +173,8 @@ class JSON:
                     while (file := '.'.join([f'{n}_{i}', *e])) in z.namelist():
                         i += 1
                 z.writestr(file, self._dumps(indent))
+                self.__dict__['_filename'] = file
+                self.__dict__['_zipfilename'] = zipfile
         return self
 
     def _dumps(self, indent=4):
@@ -344,7 +357,7 @@ if __name__ == '__main__':
     # a.b.c.d = 1
     # print(a)
 
-    # a = JSON(dict(a=list(range(10))), autoattr=True)
+    # a = JSON(dict(a=list(range(10))), autoattr=False)
     # a.b = {1, 2, 3}
     # a.c = list(range(5))
     # print(a)
